@@ -73,20 +73,23 @@ update msg { friends, myself } =
 
 view : Model -> Html Msg
 view model =
-    div []
-        ([ viewFriend model.myself
-         , colorUpdateForm model.myself.color
-         ]
-             ++
-             (Dict.values model.friends |> List.map viewFriend))
+    div [ id "Root" ]
+        [ viewMyself model.myself
+        , div [ class "TheFriendZone" ] (Dict.values model.friends |> List.map viewFriend)
+        ]
 
+viewMyself : Friend -> Html Msg
+viewMyself myself =
+  div [ class "Myself"] [ viewFriend myself
+         , colorUpdateForm myself.color
+         ]
 viewFriend : Friend -> Html msg
 viewFriend { name, color } =
-    div [ style [ ("backgroundColor", color) ] ] [ text name ]
+    div [ style [ ("backgroundColor", color) ], class "Friend" ] [ text name ]
 
 colorUpdateForm : Color -> Html Msg
 colorUpdateForm color =
-    div []
+    div [ class "ColorSelect"]
         [ select
               [ onInput UpdateMyself ]
               (List.map
