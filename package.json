@@ -1,0 +1,25 @@
+{
+  "name": "friends-emotions-elm",
+  "version": "0.0.1",
+  "description": "See Friends Emotions",
+  "main": "server.js",
+  "dependencies": {
+    "http": "0.0.0",
+    "websocket": "^1.0.23"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yjkogan/friends-emotions-elm.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yjkogan/friends-emotions-elm/issues"
+  },
+  "homepage": "https://github.com/yjkogan/friends-emotions-elm#readme"
+}
