@@ -4,6 +4,7 @@
   "description": "See Friends Emotions",
   "main": "server.js",
   "dependencies": {
+    "elm-github-install": "^0.1.0",
     "http": "0.0.0",
     "websocket": "^1.0.23"
   },
