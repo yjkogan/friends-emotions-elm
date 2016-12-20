@@ -4,14 +4,18 @@
   "description": "See Friends Emotions",
   "main": "server.js",
   "dependencies": {
-    "elm-github-install": "^0.1.0",
-    "http": "0.0.0",
-    "websocket": "^1.0.23"
+    "cors": "^2.8.1",
+    "express": "^4.14.0",
+    "http": "^0.0.0",
+    "lodash": "^4.17.2",
+    "morgan": "^1.7.0",
+    "ws": "^1.1.1"
   },
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "build": "elm-make ./Main.elm --output=./dist/Main.js",
+    "start": "nodemon server.js"
   },
   "repository": {
     "type": "git",

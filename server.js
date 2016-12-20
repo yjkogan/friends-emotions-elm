@@ -1,43 +1,72 @@
-var http = require('http');
-var server = http.createServer(function(request, response) {});
+var _ = require('lodash');
+var express = require('express');
+var cors = require('cors');
+var morgan = require('morgan')
+var app = express();
+var server = require('http').createServer()
+var WebSocketServer = require('ws').Server
+var wss = new WebSocketServer({ server: server })
+var port = 1234;
 
-server.listen(1234, function() {
-    console.log((new Date()) + ' Server is listening on port 1234');
-});
+app.use(cors());
+app.use(morgan('dev'));
 
-var WebSocketServer = require('websocket').server;
-wsServer = new WebSocketServer({
-    httpServer: server
-});
+var db = {
+  users: {
+    0: { name: "Kirk", id: 0, color: "blue" },
+    1: { name: "Yoni", id: 1, color: "blue" },
+    2: { name: "Molly", id: 2, color: "purple" },
+    3: { name: "Dan", id: 3, color: "orange" },
+    4: { name: "Elise", id: 4, color: "brown" },
+  },
+  friends: {
+    0: [1, 2, 3, 4],
+    1: [0],
+  },
+};
 
-var count = 0;
-var clients = {};
+app.get('/', function(req, res, next) {
+  res.send('Hello World!')
+})
 
-wsServer.on('request', function(r){
-  var connection = r.accept('echo-protocol', r.origin);
-  // Specific id for this client & increment count
-  var id = count++;
-  // Store the connection method so we can loop through & contact all clients
-  clients[id] = connection
-  console.log((new Date()) + ' Connection accepted [' + id + ']');
+app.get('/friends', function(req, res, next) {
+  var loggedInUserId = req.query.loggedInUserId;
+  if (!loggedInUserId) {
+    return res.json(db.users);
+  }
+  var friendIdsOfLoggedInUser = _.get(db.friends, _.toNumber(loggedInUserId), []);
+  var friendsOfLoggedInUser = _.filter(_.map(friendIdsOfLoggedInUser, (friendId) => {
+    return db.users[friendId];
+  }));
+  return res.json(friendsOfLoggedInUser);
+})
 
+app.get('/user/:id', function(req, res, next) {
+  var requestedUserId = req.params.id;
+  if (!requestedUserId) {
+    // throw error
+    console.error('Missing requestedUserId');
+    return;
+  }
+  var requestedUser = _.get(db.users, _.toNumber(requestedUserId));
+  if (!requestedUser) {
+    console.error(`User with id ${requestedUserId} not found`);
+    return;
+  }
+  return res.json(requestedUser);
+})
 
-  // Create event listener
-  connection.on('message', function(message) {
+wss.on('connection', function connection(ws) {
+  var location = url.parse(ws.upgradeReq.url, true);
+  // you might use location.query.access_token to authenticate or share sessions
+  // or ws.upgradeReq.headers.cookie (see http://stackoverflow.com/a/16395220/151312)
 
-      // The string message that was sent to us
-      var msgString = message.utf8Data;
-
-      // Loop through all clients
-      for(var i in clients){
-          // Send a message to the client with the message
-          clients[i].sendUTF(msgString);
-      }
-
+  ws.on('message', function incoming(message) {
+    console.log('received: %s', message);
   });
 
-  connection.on('close', function(reasonCode, description) {
-      delete clients[id];
-      console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-  });
+  ws.send('something');
 });
+
+server.on('request', app);
+server.listen(port, function () { console.log('Listening on ' + server.address().port) });

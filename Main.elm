@@ -1,13 +1,18 @@
-module Main exposing (..)
+port module Main exposing (..)
 
+import Dict exposing (Dict)
 import Html exposing (..)
-import Html.App as Html
+import Html
 import Html.Attributes exposing (..)
 import Html.Events exposing (onInput)
-import Dict exposing (Dict)
+import Http
 import List
 
-main : Program Never
+import Auth exposing (AuthCredentials)
+import Friends
+import Model.Friend as Friend exposing (Friend)
+
+main : Program Never Model Msg
 main =
     Html.program
         { init = (init, Cmd.none)
@@ -20,19 +25,9 @@ main =
 -- model
 
 type alias Model =
-    { friends : Dict Id Friend
+    { friends : Dict Friend.Id Friend
     , myself : Friend
     }
-
-type alias Friend =
-    { name : String
-    , id : Id
-    , color : Color
-    }
-
-type alias Id = Int
-
-type alias Color = String
 
 init : Model
 init =
@@ -55,12 +50,14 @@ initialSelf =
 -- messages
 
 type Msg
-    = FriendUpdate Id Color
-    | UpdateMyself Color
+    = FriendUpdate Friend.Id Friend.Color
+    | UpdateMyself Friend.Color
+    | Login AuthCredentials
+    | FriendHttpResponse Friends.FriendHttpMsg
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg { friends, myself } =
+update msg ({ friends, myself } as model) =
     case msg of
         FriendUpdate id color ->
             { myself = myself
@@ -70,6 +67,20 @@ update msg { friends, myself } =
             { friends = friends
             , myself = { myself | color = color }
             } ! []
+        Login { id } ->
+            (model, Cmd.map FriendHttpResponse (Friends.getUserWithId id))
+        FriendHttpResponse (Friends.ReceivedLoggedInUser result) ->
+          case result of
+            Err error -> model ! []
+            Ok loggedInUser ->
+              ({ friends = Dict.empty, myself = loggedInUser }, Cmd.map FriendHttpResponse (Friends.getFriendsForUserWithId (Debug.log "loggedInUser.id" loggedInUser.id)))
+        FriendHttpResponse (Friends.ReceivedFriendsForLoggedInUser result) ->
+          case result of
+            Err error -> model ! []
+            Ok fetchedFriends ->
+              let newFriends = Dict.fromList (List.map (\friend -> (friend.id, friend)) fetchedFriends)
+              in
+                { friends = newFriends, myself = myself } ! []
 
 view : Model -> Html Msg
 view model =
@@ -87,17 +98,17 @@ viewFriend : Friend -> Html msg
 viewFriend { name, color } =
     div [ style [ ("backgroundColor", color) ], class "Friend" ] [ text name ]
 
-colorUpdateForm : Color -> Html Msg
+colorUpdateForm : Friend.Color -> Html Msg
 colorUpdateForm color =
     div [ class "ColorSelect"]
         [ select
               [ onInput UpdateMyself ]
               (List.map
                    (\c -> colorOption c (c == color))
-                   ["red", "green", "blue"])
+                   ["red", "green", "blue", "purple", "orange", "brown"])
         ]
 
-colorOption : Color -> Bool -> Html msg
+colorOption : Friend.Color -> Bool -> Html msg
 colorOption color isSelected =
     option [ value color, selected isSelected ] [ text color ]
 
@@ -105,4 +116,8 @@ colorOption color isSelected =
 
 -- subscriptions
 subscriptions : Model -> Sub Msg
-subscriptions model = Sub.none
+subscriptions model = Sub.batch
+  [ login Login
+  ]
+
+port login : (AuthCredentials -> msg) -> Sub msg
