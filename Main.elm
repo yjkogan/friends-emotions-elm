@@ -3,14 +3,21 @@ port module Main exposing (..)
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html
-import Html.Attributes exposing (..)
+import Html.Attributes as Attrs
 import Html.Events exposing (onInput)
 import Http
+import Json.Decode as JSDecode
+import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
+import Json.Encode as JSEncode
 import List
+import WebSocket
 
 import Auth exposing (AuthCredentials)
 import Friends
 import Model.Friend as Friend exposing (Friend)
+
+websocketAddress : String
+websocketAddress = "ws://localhost:1234"
 
 main : Program Never Model Msg
 main =
@@ -54,7 +61,7 @@ type Msg
     | UpdateMyself Friend.Color
     | Login AuthCredentials
     | FriendHttpResponse Friends.FriendHttpMsg
-
+    | GotError
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg ({ friends, myself } as model) =
@@ -64,9 +71,17 @@ update msg ({ friends, myself } as model) =
             , friends = Dict.update id (Maybe.map (\f -> { f | color = color })) friends
             } ! []
         UpdateMyself color ->
-            { friends = friends
-            , myself = { myself | color = color }
-            } ! []
+            let jsonMessage = JSEncode.object
+                                [ ("FriendUpdate", JSEncode.object
+                                    [ ("id", JSEncode.int myself.id)
+                                    , ("color", JSEncode.string color)
+                                    ]
+                                  )
+                                ]
+            in
+              ({ friends = friends
+              , myself = { myself | color = color }
+              }, WebSocket.send websocketAddress (JSEncode.encode 0 jsonMessage))
         Login { id } ->
             (model, Cmd.map FriendHttpResponse (Friends.getUserWithId id))
         FriendHttpResponse (Friends.ReceivedLoggedInUser result) ->
@@ -81,26 +96,28 @@ update msg ({ friends, myself } as model) =
               let newFriends = Dict.fromList (List.map (\friend -> (friend.id, friend)) fetchedFriends)
               in
                 { friends = newFriends, myself = myself } ! []
+        GotError -> model ! []
+
 
 view : Model -> Html Msg
 view model =
-    div [ id "Root" ]
+    div [ Attrs.id "Root" ]
         [ viewMyself model.myself
-        , div [ class "TheFriendZone" ] (Dict.values model.friends |> List.map viewFriend)
+        , div [ Attrs.class "TheFriendZone" ] (Dict.values model.friends |> List.map viewFriend)
         ]
 
 viewMyself : Friend -> Html Msg
 viewMyself myself =
-  div [ class "Myself"] [ viewFriend myself
+  div [ Attrs.class "Myself"] [ viewFriend myself
          , colorUpdateForm myself.color
          ]
 viewFriend : Friend -> Html msg
 viewFriend { name, color } =
-    div [ style [ ("backgroundColor", color) ], class "Friend" ] [ text name ]
+    div [ Attrs.style [ ("backgroundColor", color) ], Attrs.class "Friend" ] [ text name ]
 
 colorUpdateForm : Friend.Color -> Html Msg
 colorUpdateForm color =
-    div [ class "ColorSelect"]
+    div [ Attrs.class "ColorSelect"]
         [ select
               [ onInput UpdateMyself ]
               (List.map
@@ -110,14 +127,26 @@ colorUpdateForm color =
 
 colorOption : Friend.Color -> Bool -> Html msg
 colorOption color isSelected =
-    option [ value color, selected isSelected ] [ text color ]
+    option [ Attrs.value color, Attrs.selected isSelected ] [ text color ]
 
+-- Decoders
+decodeFriendUpdate : JSDecode.Decoder Msg
+decodeFriendUpdate =
+  decode FriendUpdate
+    |> required "id" JSDecode.int
+    |> required "color" JSDecode.string
 
+decodeWebsocketMessage : JSDecode.Decoder Msg
+decodeWebsocketMessage =
+  JSDecode.oneOf [
+    JSDecode.field "FriendUpdate" decodeFriendUpdate
+  ]
 
 -- subscriptions
 subscriptions : Model -> Sub Msg
 subscriptions model = Sub.batch
   [ login Login
+  , WebSocket.listen websocketAddress (\s -> (JSDecode.decodeString decodeWebsocketMessage s) |> Result.withDefault GotError)
   ]
 
 port login : (AuthCredentials -> msg) -> Sub msg

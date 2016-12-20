@@ -56,16 +56,23 @@ app.get('/user/:id', function(req, res, next) {
   return res.json(requestedUser);
 })
 
+var clients = [];
+
 wss.on('connection', function connection(ws) {
-  var location = url.parse(ws.upgradeReq.url, true);
-  // you might use location.query.access_token to authenticate or share sessions
-  // or ws.upgradeReq.headers.cookie (see http://stackoverflow.com/a/16395220/151312)
-
+  clients.push(ws);
   ws.on('message', function incoming(message) {
-    console.log('received: %s', message);
+    console.log(`Got message. There are ${clients.length} clients connected.`);
+    for (var i = 0; i < clients.length; i++) {
+      if (clients[i] === ws) {
+        continue;
+      }
+      try {
+        clients[i].send(message);
+      } catch (e) {
+        // do nothing
+      }
+    }
   });
-
-  ws.send('something');
 });
 
 server.on('request', app);
